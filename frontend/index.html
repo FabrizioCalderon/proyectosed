@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog</title>
+    <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+    <div id="root"></div>
+
+    <script src="..js/config.js"></script>
+    <script>
+        async function checkAuth() {
+            const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+            if (!userInfo) {
+                renderNotLogged();
+                return;
+            }
+            const isAdmin = userInfo.userType === "Admin";
+            await loadPosts(isAdmin, userInfo.username);
+        }
+
+        function renderNotLogged() {
+            document.getElementById('root').innerHTML = `
+                <div class="not-logged">
+                    <h1>Bienvenido al Blog de SED</h1>
+                    <p>¡Registrate o inicia sesión para acceder a los beneficios de nuestra plataforma!</p>
+                    <p><b>Integrantes del grupo</b></p>
+                    <ul>
+                        <li>Mario Francisco Umaña Burgos - 00063121</li>
+                        <li>Rodrigo Andrés Mena Caballero - 00078421</li>
+                        <li>Francisco Alonso Torres Rosa - 00046821</li>
+                    </ul>
+                </div>
+            `;
+        }
+
+        async function loadPosts(isAdmin, username) {
+            try {
+                const response = await fetch(`http://${config.API_URL}/post`);
+                const posts = await response.json();
+                
+                if (!Array.isArray(posts)) {
+                    throw new Error("Formato de respuesta inválido");
+                }
+
+                const content = isAdmin ? renderAdminView(posts, username) : renderUserView(posts, username);
+                document.getElementById('root').innerHTML = content;
+            } catch (error) {
+                console.error("Error al cargar posts:", error);
+                document.getElementById('root').innerHTML = '<p>Error al cargar los posts</p>';
+            }
+        }
+
+        function renderAdminView(posts, username) {
+            return `
+                <div class="admin-display">
+                    <p class="welcome-admin-text">Bienvenido administrador, <b>@${username}</b></p>
+                    <hr>
+                    <div id="adminPanel"></div>
+                    <h3>Posts autorizados</h3>
+                    <div class="admin-posts-display">
+                        ${renderPosts(posts)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderUserView(posts, username) {
+            return `
+                <div>
+                    <div class="welcome-text">
+                        <p>Bienvenido <b>@${username}</b>, estos son los posts más recientes,</p>
+                    </div>
+                    <div>
+                        ${renderPosts(posts)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPosts(posts) {
+            return posts.map(post => `
+                <article class="post">
+                    <div class="image">
+                        <img src="http://${config.API_URL}/${post.cover}" alt="">
+                    </div>
+                    <div class="texts">
+                        <h2>${post.title}</h2>
+                        <p class="info">
+                            <a class="author">@${post.authorName}</a>
+                            <time>${new Date(post.createdAt).toLocaleDateString()}</time>
+                        </p>
+                        <p class="summary">${post.summary}</p>
+                    </div>
+                </article>
+            `).join('');
+        }
+
+        document.addEventListener('DOMContentLoaded', checkAuth);
+    </script>
+</body>
+</html>

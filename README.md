@@ -1,1 +1,1 @@
-# proyectosed
+# sedblogproyecto

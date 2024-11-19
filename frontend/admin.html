@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="users-information">
+        <h3>Información de usuarios registrados</h3>
+        <table style="width: 600px">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Tipo de usuario</th>
+                    <th>Id</th>
+                    <th>Eliminar</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+        </table>
+
+        <div class="posts-information">
+            <h3>Información de posts registrados</h3>
+            <table style="width: 1000px">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Autor</th>
+                        <th>Creación</th>
+                        <th>Titulo</th>
+                        <th>Eliminar</th>
+                    </tr>
+                </thead>
+                <tbody id="postsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/admin.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            getAllUser();
+            getAllPost();
+        });
+    </script>
+</body>
+</html>

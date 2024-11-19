@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Post</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
+    <style>
+        .edit-form {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .current-image {
+            max-width: 300px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .image-container {
+            margin: 15px 0;
+        }
+
+        .preview-container {
+            margin-top: 10px;
+        }
+
+        #imagePreview {
+            max-width: 300px;
+            display: none;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <nav class="nav-container">
+            <div class="logo">Blog SED</div>
+            <div class="nav-links">
+                <a href="#" onclick="history.back()">Volver</a>
+                <a href="#" id="logoutBtn">Cerrar Sesión</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container">
+        <form id="editPostForm" class="edit-form">
+            <h1>Editar Post</h1>
+            
+            <div class="form-group">
+                <label for="title">Título</label>
+                <input 
+                    type="text" 
+                    id="title" 
+                    name="title" 
+                    required 
+                    minlength="3"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="summary">Resumen</label>
+                <textarea 
+                    id="summary" 
+                    name="summary" 
+                    required 
+                    minlength="10"
+                ></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="content">Contenido</label>
+                <textarea 
+                    id="content" 
+                    name="content" 
+                    required 
+                    minlength="20"
+                ></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Imagen actual</label>
+                <div class="image-container">
+                    <img id="currentImage" class="current-image">
+                </div>
+                
+                <label for="cover">Cambiar imagen (opcional)</label>
+                <input 
+                    type="file" 
+                    id="cover" 
+                    name="cover" 
+                    accept="image/*"
+                >
+                <div class="preview-container">
+                    <img id="imagePreview">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+            </div>
+        </form>
+    </main>
+
+    <script src="/js/auth.js"></script>
+    <script src="/js/posts.js"></script>
+    <script>
+        const currentUser = Auth.getUser();
+        if (!currentUser) {
+            window.location.href = '/pages/login.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const postId = urlParams.get('id');
+        let currentPost = null;
+
+        // Cargar datos del post
+        async function loadPostData() {
+            try {
+                const response = await fetch(`${API_URL}/posts/${postId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${Auth.getToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Post no encontrado');
+                }
+
+                currentPost = await response.json();
+                
+                // Verificar permisos
+                if (currentPost.authorName !== currentUser.username && 
+                    currentUser.userType !== 'Admin') {
+                    window.location.href = '/pages/index.html';
+                    return;
+                }
+
+                // Llenar el formulario
+                document.getElementById('title').value = currentPost.title;
+                document.getElementById('summary').value = currentPost.summary;
+                document.getElementById('content').value = currentPost.content;
+                document.getElementById('currentImage').src = `${API_URL}${currentPost.cover}`;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar el post');
+                history.back();
+            }
+        }
+
+        // Preview de imagen
+        document.getElementById('cover').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Manejar envío del formulario
+        document.getElementById('editPostForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('title', document.getElementById('title').value);
+            formData.append('summary', document.getElementById('summary').value);
+            formData.append('content', document.getElementById('content').value);
+            
+            const newImage = document.getElementById('cover').files[0];
+            if (newImage) {
+                formData.append('file', newImage);
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/posts/${postId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${Auth.getToken()}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error al actualizar el post');
+                }
+
+                window.location.href = `/pages/post.html?id=${postId}`;
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al actualizar el post');
+            }
+        });
+
+        // Evento de logout
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            Auth.logout();
+        });
+
+        // Cargar datos iniciales
+        loadPostData();
+    </script>
+</body>
+</html>

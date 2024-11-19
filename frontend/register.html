@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/forms.css">
+</head>
+<body>
+    <form class="register" id="registerForm">
+        <h1>Registrarse</h1>
+        <div class="signup-options">
+            <label for="register-as" class="register-as-label">Registrarse como</label>
+            <div class="radio-buttons">
+                <input type="radio" name="UserType" value="User" checked />
+                <label for="user">Usuario</label>
+                <input type="radio" name="UserType" value="Admin" />
+                <label for="admin">Administrador</label>
+            </div>
+        </div>
+        
+        <div class="mb-3" id="secretKeyContainer" style="display: none;">
+            <input type="text" class="form-control" id="secretKey" placeholder="Secret Key" />
+        </div>
+
+        <input type="text" id="username" placeholder="Usuario" minlength="3" maxlength="10" required />
+        <input type="password" id="password" placeholder="Contraseña" required />
+        <div class="password-requirements">
+            La contraseña debe tener:
+            <ul>
+                <li>Al menos 8 caracteres</li>
+                <li>Una letra mayúscula</li>
+                <li>Una letra minúscula</li>
+                <li>Un número</li>
+                <li>Un carácter especial (@$!%*?&)</li>
+            </ul>
+        </div>
+        <button type="submit">Registrar</button>
+    </form>
+
+    <script src="../js/config.js"></script>
+    <script>
+        const form = document.getElementById('registerForm');
+        const userTypeInputs = document.getElementsByName('UserType');
+        const secretKeyContainer = document.getElementById('secretKeyContainer');
+
+        userTypeInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                secretKeyContainer.style.display = e.target.value === 'Admin' ? 'block' : 'none';
+            });
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const userType = document.querySelector('input[name="UserType"]:checked').value;
+            const secretKey = document.getElementById('secretKey')?.value || '';
+
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+            if (!username || username.length < 3 || username.length > 10) {
+                alert("Nombre de usuario inválido. Debe tener entre 3 y 10 caracteres.");
+                return;
+            }
+
+            if (!passwordRegex.test(password)) {
+                alert("La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula, una minúscula, un número y un carácter especial.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://${config.API_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, userType, secretKey })
+                });
+
+                if (response.ok) {
+                    alert('Registrado exitosamente');
+                    window.location.href = '/login.html';
+                } else if (response.status === 403) {
+                    alert('Contraseña clave equivocada.');
+                } else if (response.status === 429) {
+                    alert('Baneadisimo mi loco.');
+                } else {
+                    alert('Error en el registro');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Hubo un problema con la solicitud de registro.');
+            }
+        });
+    </script>
+</body>
+</html>
