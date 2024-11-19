@@ -10,6 +10,45 @@ const fs = require('fs');
 
 const PORT = process.env.PORT || 4000;
 
+// Mapa de tipos MIME
+const MIME_TYPES = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.wav': 'audio/wav',
+    '.mp4': 'video/mp4',
+    '.woff': 'application/font-woff',
+    '.ttf': 'application/font-ttf',
+    '.eot': 'application/vnd.ms-fontobject',
+    '.otf': 'application/font-otf',
+    '.wasm': 'application/wasm'
+};
+
+// Middleware para servir archivos estáticos
+const serveStaticFile = (filePath, res) => {
+    fs.readFile(filePath, (error, content) => {
+        if (error) {
+            if (error.code === 'ENOENT') {
+                res.writeHead(404);
+                res.end('File not found');
+            } else {
+                res.writeHead(500);
+                res.end('Internal server error');
+            }
+        } else {
+            const ext = path.extname(filePath);
+            const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(content);
+        }
+    });
+};
+
 // Middleware para procesar JSON
 const jsonBodyParser = (req) => {
     return new Promise((resolve, reject) => {
@@ -33,7 +72,7 @@ const jsonBodyParser = (req) => {
 
 // Configuración CORS
 const corsHeaders = {
-    'Access-Control-Allow-Origin': 'http://localhost:5500',
+    'Access-Control-Allow-Origin': '*', // Cambiado para desarrollo
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Credentials': 'true'
@@ -56,90 +95,85 @@ const server = http.createServer(async (req, res) => {
     const pathname = parsedUrl.pathname;
 
     try {
-        // Rutas públicas
-        if (pathname === '/register' && req.method === 'POST') {
-            req.body = await jsonBodyParser(req);
-            return authRoutes.handleRegister(req, res);
-        }
-        
-        if (pathname === '/login' && req.method === 'POST') {
-            req.body = await jsonBodyParser(req);
-            return authRoutes.handleLogin(req, res);
+        // Servir archivo index.html en la ruta raíz
+        if (pathname === '/' || pathname === '/index.html') {
+            return serveStaticFile(path.join(__dirname, '../frontend/index.html'), res);
         }
 
-        // Ruta para búsqueda pública de posts
-        if (pathname === '/posts/search' && req.method === 'GET') {
-            return postRoutes.handleSearchPosts(req, res);
+        // Servir archivos estáticos
+        if (pathname.match(/\.(html|css|js|png|jpg|gif|svg|ico)$/)) {
+            const filePath = path.join(__dirname, '../frontend', pathname);
+            return serveStaticFile(filePath, res);
         }
 
-        if (pathname === '/posts' && req.method === 'GET') {
-            return postRoutes.handleGetAllPosts(req, res);
-        }
+        // API Routes
+        if (pathname.startsWith('/api/')) {
+            const apiPath = pathname.replace('/api', '');
 
-        // Servir archivos estáticos de uploads
-        if (pathname.startsWith('/uploads/') && req.method === 'GET') {
-            const filePath = path.join(__dirname, pathname);
-            fs.readFile(filePath, (err, data) => {
-                if (err) {
-                    res.writeHead(404);
-                    res.end('File not found');
+            // Rutas públicas
+            if (apiPath === '/register' && req.method === 'POST') {
+                req.body = await jsonBodyParser(req);
+                return authRoutes.handleRegister(req, res);
+            }
+            
+            if (apiPath === '/login' && req.method === 'POST') {
+                req.body = await jsonBodyParser(req);
+                return authRoutes.handleLogin(req, res);
+            }
+
+            if (apiPath === '/posts/search' && req.method === 'GET') {
+                return postRoutes.handleSearchPosts(req, res);
+            }
+
+            if (apiPath === '/posts' && req.method === 'GET') {
+                return postRoutes.handleGetAllPosts(req, res);
+            }
+
+            // Rutas protegidas
+            auth.authenticate(req, res, async () => {
+                if (apiPath === '/posts' && req.method === 'POST') {
+                    return postRoutes.handleCreatePost(req, res);
+                }
+                
+                if (apiPath.match(/^\/posts\/\d+$/) && req.method === 'PUT') {
+                    return postRoutes.handleUpdatePost(req, res);
+                }
+                
+                if (apiPath.match(/^\/posts\/\d+$/) && req.method === 'DELETE') {
+                    return postRoutes.handleDeletePost(req, res);
+                }
+
+                // Rutas de administración
+                if (apiPath.startsWith('/admin')) {
+                    auth.checkRole(['admin', 'super_admin'])(req, res, async () => {
+                        if (apiPath === '/admin/users' && req.method === 'GET') {
+                            return adminRoutes.handleGetAllUsers(req, res);
+                        }
+                        
+                        if (apiPath.match(/^\/admin\/users\/\d+\/role$/) && req.method === 'PUT') {
+                            req.body = await jsonBodyParser(req);
+                            return adminRoutes.handleUpdateUserRole(req, res);
+                        }
+                        
+                        if (apiPath.match(/^\/admin\/users\/\d+$/) && req.method === 'DELETE') {
+                            return adminRoutes.handleDeleteUser(req, res);
+                        }
+
+                        res.writeHead(404);
+                        res.end('Not found');
+                    });
                     return;
                 }
 
-                const ext = path.extname(filePath);
-                const contentType = {
-                    '.jpg': 'image/jpeg',
-                    '.jpeg': 'image/jpeg',
-                    '.png': 'image/png',
-                    '.gif': 'image/gif'
-                }[ext] || 'application/octet-stream';
-
-                res.writeHead(200, { 'Content-Type': contentType });
-                res.end(data);
+                res.writeHead(404);
+                res.end('Not found');
             });
-            return;
         }
 
-        // Rutas protegidas - Verificar autenticación
-        auth.authenticate(req, res, async () => {
-            // Rutas de posts
-            if (pathname === '/posts' && req.method === 'POST') {
-                return postRoutes.handleCreatePost(req, res);
-            }
-            
-            if (pathname.match(/^\/posts\/\d+$/) && req.method === 'PUT') {
-                return postRoutes.handleUpdatePost(req, res);
-            }
-            
-            if (pathname.match(/^\/posts\/\d+$/) && req.method === 'DELETE') {
-                return postRoutes.handleDeletePost(req, res);
-            }
+        // Si no coincide con ninguna ruta anterior, servir index.html
+        const filePath = path.join(__dirname, '../frontend/index.html');
+        return serveStaticFile(filePath, res);
 
-            // Rutas de administración - Verificar rol de admin
-            if (pathname.startsWith('/admin')) {
-                auth.checkRole(['admin', 'super_admin'])(req, res, async () => {
-                    if (pathname === '/admin/users' && req.method === 'GET') {
-                        return adminRoutes.handleGetAllUsers(req, res);
-                    }
-                    
-                    if (pathname.match(/^\/admin\/users\/\d+\/role$/) && req.method === 'PUT') {
-                        req.body = await jsonBodyParser(req);
-                        return adminRoutes.handleUpdateUserRole(req, res);
-                    }
-                    
-                    if (pathname.match(/^\/admin\/users\/\d+$/) && req.method === 'DELETE') {
-                        return adminRoutes.handleDeleteUser(req, res);
-                    }
-
-                    res.writeHead(404);
-                    res.end('Not found');
-                });
-                return;
-            }
-
-            res.writeHead(404);
-            res.end('Not found');
-        });
     } catch (error) {
         console.error('Server error:', error);
         res.writeHead(500, { 'Content-Type': 'application/json' });
