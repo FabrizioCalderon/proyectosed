@@ -1,27 +1,45 @@
-// middleware/auth.js
-const jwt = require('jsonwebtoken');
+const encryption = require('../utils/encryption');
 
-function authMiddleware(req, res, next) {
-    try {
-        const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+const auth = {
+    authenticate(req, res, next) {
+        const authHeader = req.headers.authorization;
         
-        if (!token) {
-            return res.status(401).json({ error: 'No autorizado' });
+        if (!authHeader) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'No token provided' }));
+            return;
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const token = authHeader.split(' ')[1];
+        const decoded = encryption.verifyToken(token);
+
+        if (!decoded) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid token' }));
+            return;
+        }
+
         req.user = decoded;
         next();
-    } catch (error) {
-        res.status(401).json({ error: 'Token inválido' });
-    }
-}
+    },
 
-function adminMiddleware(req, res, next) {
-    if (req.user.userType !== 'Admin') {
-        return res.status(403).json({ error: 'Acceso denegado' });
-    }
-    next();
-}
+    checkRole(roles) {
+        return (req, res, next) => {
+            if (!req.user) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'No user found' }));
+                return;
+            }
 
-module.exports = { authMiddleware, adminMiddleware };
+            if (!roles.includes(req.user.role)) {
+                res.writeHead(403, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Insufficient permissions' }));
+                return;
+            }
+
+            next();
+        };
+    }
+};
+
+module.exports = auth;

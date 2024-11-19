@@ -1,30 +1,29 @@
-const { MongoClient } = require('mongodb');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
-const url = 'mongodb://localhost:27017';
-const dbName = 'blogSED';
-
+const dbPath = path.join(__dirname, '..', 'database.sqlite');
 let db = null;
 
-async function connectDB() {
-    try {
-        const client = await MongoClient.connect(url);
-        db = client.db(dbName);
-        console.log('Connected to MongoDB');
-        
-        // Crear índices necesarios
-        await db.collection('users').createIndex({ username: 1 }, { unique: true });
-        await db.collection('posts').createIndex({ title: 'text', content: 'text' });
-        
-        return db;
-    } catch (error) {
-        console.error('MongoDB connection error:', error);
-        throw error;
-    }
+function connectDB() {
+    return new Promise((resolve, reject) => {
+        try {
+            db = new sqlite3.Database(dbPath, (err) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    console.log('Conectado a la base de datos SQLite');
+                    resolve(db);
+                }
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
 }
 
 function getDB() {
     if (!db) {
-        throw new Error('Database not initialized');
+        throw new Error('Base de datos no inicializada');
     }
     return db;
 }
